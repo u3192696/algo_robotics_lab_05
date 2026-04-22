@@ -90,13 +90,13 @@ class ScanMatcher:
         """
         # TODO: YOUR CODE HERE
         # 1. Create a grid of zeros, shape(local_grid_size x local_grid_size)
-        grid = np.zeros((self.localgridsize, self.localgridsize), dtype=np.float32)
+        grid = np.zeros((self.local_grid_size, self.local_grid_size), dtype=np.float32)
         
         # 2. Compute the grid centre offset: offset = local_grid_size // 2  (centre of grid)
-        offset = self.localgridsize // 2
+        offset = self.local_grid_size // 2
 
         # if empty-scan return zero grid
-        if len(scanpoints) == 0:
+        if len(scan_points) == 0:
             return grid
 
         # 3. For each point (x, y), convert to grid coordinates:
@@ -104,17 +104,17 @@ class ScanMatcher:
         #        row = int(y / local_grid_resolution) + offset
         # NOTE: Uses NumPy array operations instead of a loop
         # NOTE: Using astype(int) instead of math.floor() for negative values
-        cols = (scanpoints[:, 0] / self.localgridresolution).astype(int) + offset
-        rows = (scanpoints[:, 1] / self.localgridresolution).astype(int) + offset
+        cols = (scan_points[:, 0] / self.local_grid_resolution).astype(int) + offset
+        rows = (scan_points[:, 1] / self.local_grid_resolution).astype(int) + offset
         mask = (
-            (rows >= 0) & (rows < self.localgridsize) &
-            (cols >= 0) & (cols < self.localgridsize)
+            (rows >= 0) & (rows < self.local_grid_size) &
+            (cols >= 0) & (cols < self.local_grid_size)
         )
         # 4. If the cell is within bounds, set grid[row, col] = 1.0
         grid[rows[mask], cols[mask]] = 1.0
         
         # 5. Dilate the grid using maximum_filter(grid, size=3)
-        grid = maximumfilter(grid, size=3)
+        grid = maximum_filter(grid, size=3)
 
         # 6. Return the grid
         return grid.astype(np.float32)
@@ -161,25 +161,25 @@ class ScanMatcher:
         c, s = np.cos(dtheta), np.sin(dtheta)
         
         # Same centre offset as local grid
-        offset = self.localgridsize // 2
+        offset = self.local_grid_size // 2
 
         # Test for empty-scan
-        if len(scanpoints) == 0:
+        if len(scan_points) == 0:
             return 0.0
 
         # 3. For each point (px, py) in scan_points:
         #       Rotate: px' = cos(dtheta) * px - sin(dtheta) * py
         #       Translate: px' += dx, py' += dy
-        px = c * scanpoints[:, 0] - s * scanpoints[:, 1] + dx
-        py = s * scanpoints[:, 0] + c * scanpoints[:, 1] + dy
+        px = c * scan_points[:, 0] - s * scan_points[:, 1] + dx
+        py = s * scan_points[:, 0] + c * scan_points[:, 1] + dy
 
         # 4. Convert each transformed point to grid coordinates
         #       (same NumPy array ops as _build_local_grid)
-        cols = (px / self.localgridresolution).astype(int) + offset
-        rows = (py / self.localgridresolution).astype(int) + offset
+        cols = (px / self.local_grid_resolution).astype(int) + offset
+        rows = (py / self.local_grid_resolution).astype(int) + offset
         mask = (
-            (rows >= 0) & (rows < self.localgridsize) &
-            (cols >= 0) & (cols < self.localgridsize)
+            (rows >= 0) & (rows < self.local_grid_size) &
+            (cols >= 0) & (cols < self.local_grid_size)
         )
         # 5. For each point within grid bounds, check if grid[row, col] > 0
         #       if so, increment the score
@@ -280,31 +280,31 @@ class ScanMatcher:
 
         # 3.1. Loop over all combinations (ix, x), (iy, y), (it, theta)
         #        from the provided search arrays
-        for ix, x in enumerate(xvalues):
-            for iy, y in enumerate(yvalues):
-                for it, theta in enumerate(thetavalues):
+        for ix, x in enumerate(x_values):
+            for iy, y in enumerate(y_values):
+                for it, theta in enumerate(theta_values):
                     
                     # 3.2. For each combination, build a candidate pose [x, y, theta]
                     #        and score it with _score_alignment()
                     candidate = np.array([x, y, theta])
-                    score = self.scorealignment(refgrid, scannew, candidate)
+                    score = self._score_alignment(ref_grid, scan_new, candidate)
                     
                     # 3.3. Store the score in the scores dict keyed by (ix, iy, it)
                     scores[(ix, iy, it)] = score
 
                     # 3.4. Track the best score, best pose, and best index tuple
-                    if score > bestscore:
-                        bestscore = score
-                        bestpose = candidate
-                        bestidx = (ix, iy, it)
+                    if score > best_score:
+                        best_score = score
+                        best_pose = candidate
+                        best_idx = (ix, iy, it)
 
         # 3.5. After the loop, compute normalised_score = best_score / len(scan_new)
-        normalizedscore = bestscore / len(scannew)
+        normalised_score = best_score / len(scan_new)
 
         # 3.6. If normalised_score < self.min_score:
         #        return (initial_guess, default_cov, 0.0) — reject the match
-        if normalizedscore < self.minscore:
-            return initialguess.copy(), defaultcov, 0.0
+        if normalised_score < self.min_score:
+            return initial_guess.copy(), default_cov, 0.0
 
         # Step 4: Estimate covariance from the Hessian of the score surface
         covariance = self._estimate_covariance_from_hessian(
@@ -312,7 +312,7 @@ class ScanMatcher:
             self.resolution_x, self.resolution_y, self.resolution_theta
         )
 
-        return best_pose, covariance, normalized_score
+        return best_pose, covariance, normalised_score
 
     # ========================================================================
     # PROVIDED: Estimate Covariance from Hessian (do not modify)
